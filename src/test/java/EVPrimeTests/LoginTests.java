@@ -2,6 +2,7 @@ package EVPrimeTests;
 
 import client.EVPrimeClient;
 import data.SignUpLoginDataFactory;
+import database.DBClient;
 import io.restassured.response.Response;
 import models.request.SignUpLoginRequest;
 import models.response.LoginResponse;
@@ -11,9 +12,9 @@ import org.junit.Before;
 import org.junit.Test;
 import util.DateBuilder;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 
 import static objectbuilder.SignUpObjectBuilder.createBodyForSignUp;
 import static org.junit.Assert.*;
@@ -26,14 +27,17 @@ public class LoginTests {
     private String existingPassword;
     private String authToken;
     private DateBuilder dateBuilder;
+    private String createdEmail;
 
     @Before
     public void setUp() {
         client = new EVPrimeClient();
         dateBuilder = new DateBuilder();
 
+
         existingEmail = RandomStringUtils.randomAlphanumeric(10) + "@mail.com";
         existingPassword = RandomStringUtils.randomAlphanumeric(10);
+        createdEmail = existingEmail;
 
         signUpRequest = new SignUpLoginDataFactory(createBodyForSignUp())
                 .setEmail(existingEmail)
@@ -129,7 +133,12 @@ public class LoginTests {
     }
 
     @After
-    public void tearDown() {
-        client.deleteUser(existingEmail, authToken);
+    public void tearDown() throws SQLException {
+        DBClient dbClient = new DBClient();
+
+        if (createdEmail != null) {
+            dbClient.deleteUserByEmail(createdEmail);
+            createdEmail = null;
+        }
     }
 }

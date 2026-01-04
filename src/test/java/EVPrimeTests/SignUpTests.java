@@ -2,18 +2,24 @@ package EVPrimeTests;
 
 import client.EVPrimeClient;
 import data.SignUpLoginDataFactory;
+import database.DBClient;
 import io.restassured.response.Response;
 import models.request.SignUpLoginRequest;
 import models.response.SignUpErrorResponse;
 import models.response.SignUpResponse;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.After;
 import org.junit.Test;
+
+import java.sql.SQLException;
 
 import static objectbuilder.SignUpObjectBuilder.createBodyForSignUp;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 public class SignUpTests {
+
+    private String createdEmail;
 
 
     @Test
@@ -22,6 +28,7 @@ public class SignUpTests {
                 .setEmail(RandomStringUtils.randomAlphanumeric(10) + "@mail.com")
                 .setPassword(RandomStringUtils.randomAlphanumeric(10))
                 .createRequest();
+        createdEmail = signUpRequest.getEmail();
 
         Response response = new EVPrimeClient().signUp(signUpRequest);
 
@@ -88,6 +95,7 @@ public class SignUpTests {
                 .setEmail(RandomStringUtils.randomAlphanumeric(10) + "@mail.com")
                 .setPassword(RandomStringUtils.randomAlphanumeric(10))
                 .createRequest();
+        createdEmail = signUpRequest.getEmail();
 
         Response firstResponse = new EVPrimeClient().signUp(signUpRequest);
         assertEquals(201, firstResponse.statusCode());
@@ -118,5 +126,15 @@ public class SignUpTests {
                 response.jsonPath().getString("message"));
         assertEquals("Invalid password. Must be at least 6 characters long.",
                 response.jsonPath().getString("errors.password"));
+    }
+
+    @After
+    public void tearDown() throws SQLException {
+        DBClient dbClient = new DBClient();
+
+        if (createdEmail != null) {
+            dbClient.deleteUserByEmail(createdEmail);
+            createdEmail = null;
+        }
     }
 }

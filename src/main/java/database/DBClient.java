@@ -15,9 +15,11 @@ public class DBClient {
     public PostUpdateEventRequest getEventFromDB(String id) throws SQLException {
         connect();
 
-        String sql = "SELECT * FROM events WHERE id = '" + id + "'";
-        Statement stmt = conn.createStatement();
-        ResultSet rs = stmt.executeQuery(sql);
+        String sql = "SELECT * FROM events WHERE id = ?";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        pstmt.setString(1, id);
+        ResultSet rs = pstmt.executeQuery();
+
 
         rs.next();
 
@@ -32,13 +34,54 @@ public class DBClient {
                 .build();
     }
 
-    public boolean isEventDeletedFromDb(String id) throws SQLException {
+    public void deleteUserByEmail(String email) throws SQLException {
         connect();
 
-        String sql = "DELETE from events where id = '" + id + "'";
-        PreparedStatement pstmt = conn.prepareStatement(sql);
-
-        return pstmt.executeUpdate() == 1;
+        String sql = "DELETE FROM \"Users\" WHERE email = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, email);
+            pstmt.executeUpdate();
+        } finally {
+            conn.close();
+        }
     }
 
+    public void deleteUserById(int userId) throws SQLException {
+        connect();
+
+        String sql = "DELETE FROM \"Users\" WHERE email = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            pstmt.executeUpdate();
+        } finally {
+            conn.close();
+        }
+    }
+
+
+    public void deleteEventById(String id) throws SQLException {
+        connect();
+
+        String sql = "DELETE FROM events WHERE id = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, id);
+            pstmt.executeUpdate();
+        }
+
+        conn.close();
+    }
+
+    public boolean doesEventExist(String id) throws SQLException {
+        connect();
+
+        String sql = "SELECT 1 FROM events WHERE id = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, id);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next();
+        } finally {
+            conn.close();
+        }
+
+    }
 }

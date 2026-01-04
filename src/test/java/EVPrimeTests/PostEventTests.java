@@ -15,6 +15,8 @@ import org.junit.*;
 import util.DateBuilder;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static objectbuilder.PostEventObjectBuilder.createBodyForPostEvent;
 import static objectbuilder.SignUpObjectBuilder.createBodyForSignUp;
@@ -23,7 +25,8 @@ import static org.junit.Assert.*;
 public class PostEventTests {
 
     DBClient dbClient = new DBClient();
-    private static String id;
+    private static List<String> createdEmails = new ArrayList<>();
+    private static String eventId;
     private static SignUpLoginRequest signUpRequest;
     private static LoginResponse loginResponseBody;
     private static PostUpdateEventRequest requestBody;
@@ -38,6 +41,8 @@ public class PostEventTests {
                 .setEmail(RandomStringUtils.randomAlphanumeric(10) + dateBuilder.currentTimeMinusOneHour() + "@mail.com")
                 .setPassword(RandomStringUtils.randomAlphanumeric(10))
                 .createRequest();
+
+        createdEmails.add(signUpRequest.getEmail());
 
         new EVPrimeClient()
                 .signUp(signUpRequest);
@@ -63,7 +68,7 @@ public class PostEventTests {
                 .postEvent(requestBody, loginResponseBody.getToken());
 
         PostUpdateDeleteEventResponse postResponse = response.body().as(PostUpdateDeleteEventResponse.class);
-        id = postResponse.getMessage().substring(39);
+        eventId = postResponse.getMessage().substring(39);
 
         assertEquals(201, response.statusCode());
         assertTrue(postResponse.getMessage().contains("Successfully created an event with id: "));
@@ -155,9 +160,7 @@ public class PostEventTests {
     }
 
     @Test
-    @Ignore
-    @Description("Possible bug in backend: empty location error is returned in description field")
-    public void invalidLocationTest() {
+    public void emptyLocationTest() {
         PostUpdateEventRequest requestBodyWithInvalidLocation = new PostEventDataFactory(createBodyForPostEvent())
                 .setTitle("Some title")
                 .setImage("https://picture.jpg")
@@ -170,7 +173,7 @@ public class PostEventTests {
 
         assertEquals(422, response.statusCode());
         assertEquals("Adding the event failed due to validation errors.", response.as(PostUpdateDeleteEventResponse.class).getMessage());
-        assertEquals("Invalid location.", response.as(PostUpdateDeleteEventResponse.class).getErrors().getDescription());
+        assertEquals("Invalid location.", response.as(PostUpdateDeleteEventResponse.class).getErrors().getLocation());
     }
 
     @Test
@@ -200,9 +203,16 @@ public class PostEventTests {
     }
 
     @After
-    public void deleteEvent() throws SQLException {
-        if (id != null) {
-            new DBClient().isEventDeletedFromDb(id);
+    public void tearDown() throws SQLException {
+        DBClient dbClient = new DBClient();
+
+        for (String email : createdEmails) {
+            dbClient.deleteUserByEmail(email);
+        }
+        createdEmails.clear();
+        if (eventId != null) {
+            dbClient.deleteEventById(eventId);
+            eventId = null;
         }
     }
 }

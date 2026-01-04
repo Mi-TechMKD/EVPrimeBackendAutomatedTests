@@ -14,6 +14,8 @@ import org.junit.*;
 import util.DateBuilder;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static objectbuilder.PostEventObjectBuilder.createBodyForPostEvent;
 import static objectbuilder.SignUpObjectBuilder.createBodyForSignUp;
@@ -21,56 +23,56 @@ import static org.junit.Assert.*;
 
 public class UpdateEventTests {
 
-    DBClient dbClient = new DBClient();
+    private static List<String> createdEmails = new ArrayList<>();
     private static String eventId;
     private static SignUpLoginRequest signUpRequest;
     private static LoginResponse loginResponseBody;
     private static PostUpdateEventRequest requestBody;
-    static DateBuilder dateBuilder = new DateBuilder();
+    private static DateBuilder dateBuilder = new DateBuilder();
+
     private EVPrimeClient client;
-    private static PostUpdateDeleteEventResponse postResponse;
+    private DBClient dbClient;
 
     @Before
-    public void setUp() throws SQLException {
+    public void setUp() {
         client = new EVPrimeClient();
+        dbClient = new DBClient();
 
         signUpRequest = new SignUpLoginDataFactory(createBodyForSignUp())
                 .setEmail(RandomStringUtils.randomAlphanumeric(10) + dateBuilder.currentTimeMinusOneHour() + "@mail.com")
                 .setPassword(RandomStringUtils.randomAlphanumeric(10))
                 .createRequest();
 
-        new EVPrimeClient().signUp(signUpRequest);
-        Response loginResponse = new EVPrimeClient().login(signUpRequest);
+        createdEmails.add(signUpRequest.getEmail());
+
+        client.signUp(signUpRequest);
+
+        Response loginResponse = client.login(signUpRequest);
         loginResponseBody = loginResponse.body().as(LoginResponse.class);
 
         requestBody = new PostEventDataFactory(createBodyForPostEvent())
                 .setTitle(RandomStringUtils.randomAlphanumeric(10))
-                .setImage("https://example.com/evsummit-updated.jpg")
+                .setImage("https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.goal.com%2Fen-sg%2Fnews%2Fliverpool-vs-manchester-united-lineups-live-updates%2Fbltf4a9e3c54804c6b8")
                 .setDate(dateBuilder.currentTime())
                 .setLocation(RandomStringUtils.randomAlphanumeric(15))
                 .setDescription(RandomStringUtils.randomAlphanumeric(20))
                 .createRequest();
 
-        Response postResponseRaw = client.postEvent(requestBody, loginResponseBody.getToken());
-        assertEquals("Event creation FAILED!", 201, postResponseRaw.statusCode());
-
-        postResponse = postResponseRaw.body().as(PostUpdateDeleteEventResponse.class);
-        eventId = postResponse.getMessage().substring(39);
+        Response postResponse = client.postEvent(requestBody, loginResponseBody.getToken());
+        String message = postResponse.jsonPath().getString("message");
+        eventId = message.substring(message.lastIndexOf(":") + 2).trim();
     }
 
     @Test
-    public void SuccessfulUpdateEventTest() throws SQLException {
+    public void successfulUpdateEventTest() throws SQLException {
         requestBody.setDate("2025-12-08");
 
-        Response updateResponse = new EVPrimeClient()
-                .updateEvent(requestBody, loginResponseBody.getToken(), postResponse.getMessage().substring(39));
-
+        Response updateResponse = client.updateEvent(requestBody, loginResponseBody.getToken(), eventId);
         PostUpdateDeleteEventResponse updateResponseBody = updateResponse.body().as(PostUpdateDeleteEventResponse.class);
 
         assertEquals(201, updateResponse.statusCode());
         assertTrue(updateResponseBody.getMessage().contains("Successfully updated the event with id: "));
-        assertEquals(requestBody.getDate(), dbClient.getEventFromDB(postResponse.getMessage().substring(39)).getDate());
-
+        assertEquals(requestBody.getDate(), dbClient.getEventFromDB(eventId).getDate());
     }
 
     @Test
@@ -116,7 +118,7 @@ public class UpdateEventTests {
                 .setTitle(RandomStringUtils.randomAlphanumeric(10))
                 .setImage("https://picture.jpg")
                 .setDate("2025-12-29")
-                .setLocation("") // празна локација
+                .setLocation("")
                 .setDescription(RandomStringUtils.randomAlphanumeric(20))
                 .createRequest();
 
@@ -128,7 +130,7 @@ public class UpdateEventTests {
 
         //BUG temporary solution
         String locationError = responseBody.getErrors().getLocation();
-        if(locationError == null) {
+        if (locationError == null) {
             locationError = responseBody.getErrors().getDescription();
         }
         assertEquals("Invalid location.", locationError);
@@ -180,9 +182,15 @@ public class UpdateEventTests {
     }
 
     @After
-    public void deleteEvent() throws SQLException {
+    public void tearDown() throws SQLException {
         if (eventId != null) {
-            new DBClient().isEventDeletedFromDb(eventId);
+            dbClient.deleteEventById(eventId);
+            eventId = null;
         }
+
+        for (String email : createdEmails) {
+            dbClient.deleteUserByEmail(email);
+        }
+        createdEmails.clear();
     }
 }
